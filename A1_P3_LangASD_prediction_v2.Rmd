@@ -1,0 +1,350 @@
+---
+title: "Assignment 1 - Language Development in ASD - part 3"
+author: "Riccardo Fusaroli"
+date: "August 10, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+csvasm = read.csv("C:/Users/Bruger/Desktop/Programming/Semester 3/asm. 1/Assignment-1---Anja/CSVASM1.csv")
+
+setwd("C:/Users/Bruger/Desktop/Programming/Semester 3/Assignment-3-")
+
+library(dplyr)
+library(lmerTest)
+library(ggplot2)
+library(hydroGOF)
+library(gstat)
+library(dplyr)
+library(stringr)
+library(plyr)
+library(caret)
+library(modelr)
+library(ModelMetrics)
+library(Metrics)
+
+train_data = subset(csvasm, select = c(subj_id, Diagnosis, Age, Gender, Ethnicity, visit, ADOS, MullenRaw, ExpressiveLangRaw, MOT_MLU, CHI_MLU, types_MOT, types_CHI, tokens_MOT, tokens_CHI))
+
+```
+
+## Welcome to the third exciting part of the Language Development in ASD exercise
+
+In this exercise we will delve more in depth with different practices of model comparison and model selection, by first evaluating your models from last time, then learning how to cross-validate models and finally how to systematically compare models.
+
+N.B. There are several datasets for this exercise, so pay attention to which one you are using!
+
+1. The (training) dataset from last time (the awesome one you produced :-) ).
+2. The (test) datasets on which you can test the models from last time:
+* Demographic and clinical data: https://www.dropbox.com/s/ra99bdvm6fzay3g/demo_test.csv?dl=0
+* Utterance Length data: https://www.dropbox.com/s/uxtqqzl18nwxowq/LU_test.csv?dl=0
+* Word data: https://www.dropbox.com/s/1ces4hv8kh0stov/token_test.csv?dl=0
+
+### Exercise 1) Testing model performance
+
+How did your models from last time perform? In this exercise you have to compare the results on the training data () and on the test data. Report both of them. Compare them. Discuss why they are different.
+
+- recreate the models you chose last time (just write the code again and apply it to Assignment2TrainData1.csv)
+- calculate performance of the model on the training data: root mean square error is a good measure. (Tip: google the functions rmse() and predict() )
+- create the test dataset (apply the code from assignment 1 part 1 to clean up the 3 test datasets)
+- test the performance of the models on the test data (Tips: time to reuse "predict()")
+- optional: predictions are never certain, can you identify the uncertainty of the predictions? (e.g. google predictinterval())
+
+```{r}
+
+
+bm_001 = lmer(CHI_MLU ~ ADOS + ExpressiveLangRaw + (1+ visit|subj_id), train_data)
+summary(bm_001)
+
+rmse_train = modelr::rmse(bm_001, train_data)
+rmse_train
+
+#Doesn't work: rmse "Error: unexpected ',' in..."
+
+xp = predict(bm_001, train_data, interval = "prediction")
+summary(xp)
+
+dpred= data.frame(train_data, predict(bm_001, interval="prediction"))
+
+scatterpred = ggplot(dpred, aes(ADOS, CHI_MLU))
+scatterpred + geom_point() + geom_smooth(method = "lm")
+
+
+
+scatterpred2 = ggplot(dpred, aes(ExpressiveLangRaw, CHI_MLU))
+scatterpred2 + geom_point() + geom_smooth(method = "lm")
+
+#Don't understand the outcomes of predict(), but the scatterplots doesn't look good --> much of the data goes beying the confidence intervals, which is bad because that the confidence intervals tells us if we were to repeat the experiment an infinite numberof times, 95% of the times our data would fall within the confidence interval.
+
+
+#------ Cleaning the data
+
+
+
+demo_test = read.csv("demo_test.csv")
+LU_test = read.csv("LU_test.csv")
+token_test = read.csv ("token_test.csv")
+
+#Renaming ID
+demo_test = rename(demo_test, c("Child.ID" = "subj_id"))
+LU_test = rename(LU_test, c("SUBJ" = "subj_id"))
+token_test = rename(token_test, c("SUBJ" = "subj_id"))
+
+#Renaming visit
+demo_test = rename(demo_test, c("Visit" = "visit"))
+LU_test = rename(LU_test, c("VISIT" = "visit"))
+token_test = rename (token_test, c("VISIT" = "visit"))
+
+#Take the dataframe you need, and write the column you want to change. Use the str_extract to extract the numbers in the given dataframe and column.
+
+#\\d extracts only digits.
+
+LU_test$visit = str_extract(LU_test$visit, "\\d")
+token_test$visit = str_extract(token_test$visit, "\\d")
+
+#Use gsub to remove all dots in the given column. \\. = remove all periods you use in sentences, not numerical periods. 
+
+demo_test$subj_id = gsub("\\.", "", demo_test$subj_id)
+LU_test$subj_id = gsub("\\.", "", LU_test$subj_id)
+token_test$subj_id = gsub("\\.", "", token_test$subj_id)
+
+#Make a new dataframe where you only select the variables you need from the old dataframe.
+
+demo_test_sub = select(demo_test, subj_id, visit, Ethnicity, Diagnosis, Gender, Age, ADOS, MullenRaw, ExpressiveLangRaw)
+
+lu_test_sub = select(LU_test, subj_id, visit, MOT_MLU, MOT_LUstd, CHI_MLU, CHI_LUstd)
+
+token_test_sub = select(token_test, subj_id, visit, types_MOT, types_CHI, tokens_MOT, tokens_CHI)
+
+#Merge them all together.
+
+dftest = merge(demo_test_sub, lu_test_sub)
+
+final_dftest = merge(dftest, token_test_sub)
+
+#Take the value for each first visit and repeat it for the rest of the visits for each participant
+
+
+#Takes the old dataframe and makes a new one where it only includes 1st visit (takes row 1, 7 to 9 and makes it into a dataframe, merging them together with the old one at the end)
+
+dftest2 = subset(final_dftest[,c(1,7:9)], final_dftest$visit == "1")
+
+data_01 = subset(final_dftest, select = -c(ADOS, MullenRaw, ExpressiveLangRaw))
+
+data_02 = merge(dftest2, data_01, all = T)
+
+
+#Convert the ID into a factor, which will be conveted into numbers
+
+data_02$subj_id = as.numeric(as.factor(data_02$subj_id))
+
+
+#Renaming Gender --> 1 = Female, 2 = Male
+
+data_02$Gender = revalue(as.factor(data_02$Gender), c("1"="F", "2" = "M"))
+
+
+#Renaming Diagnosis --> A = ASD (autism spectrum disorder), B = TD (typically develop)
+
+data_02$Diagnosis = revalue(as.factor(data_02$Diagnosis), c("A" = "ASD", "B" = "TD"))
+
+
+write.csv(data_02, file = "test_data.csv")
+
+test_data = read.csv("test_data.csv")
+
+
+
+#----- Testing the model on the test data
+
+
+bm_test_data = lmer(CHI_MLU ~ ADOS + ExpressiveLangRaw + (1+ visit|subj_id), test_data)
+summary(bm_test_data)
+
+
+rmse_model_test = modelr::rmse(bm_test_data, test_data)
+summary(rmse_model_test)
+
+xyp = predict(bm_test_data, test_data, interval = "prediction")
+summary(xyp)
+
+
+
+
+[HERE GOES YOUR ANSWER]
+```` 
+
+### Exercise 2) Model Selection via Cross-validation (N.B: ChildMLU!)
+
+One way to reduce bad surprises when testing a model on new data is to train the model via cross-validation. 
+
+In this exercise you have to use cross-validation to calculate the predictive error of your models and use this predictive error to select the best possible model.
+
+- Create the basic model of ChildMLU as a function of Time and Diagnosis (don't forget the random effects!).
+- Make a cross-validated version of the model. (Tips: google the function "createFolds";  loop through each fold, train a model on the other folds and test it on the fold)
+- Report the results and comment on them.
+
+- Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
+
+- Bonus Question 1: How would you go comparing the performance of the basic model and the cross-validated model on the testing set?
+- Bonus Question 2: What is the effect of changing the number of folds? Can you plot RMSE as a function of number of folds?
+- Bonus Question 3: compare the cross-validated predictive error against the actual predictive error on the test data
+
+
+```{r}
+
+
+# -----Exercize 2
+
+basic_model_test = lmer(CHI_MLU ~ visit + Diagnosis + (1|subj_id), test_data)
+
+
+basic_model_train = lmer(CHI_MLU ~ visit + Diagnosis + (1|subj_id), train_data)
+
+#CreateFolds(features, num_folds)
+
+folds = createFolds(unique(train_data$subj_id), k = 4)
+
+#But Im not using createFolds in the loop --> Riccardo approves!
+train_error = NULL
+test_error = NULL
+n = 1
+for (i in folds){
+    #Segement your data by fold using the which() function 
+    testIndexes <- which(train_data$subj_id %in% i,arr.ind=TRUE)
+    testData <- train_data[testIndexes, ] #making a new variable which contains the train data
+    trainData <- train_data[-testIndexes, ]
+    model1 = lmer(CHI_MLU ~ visit + Diagnosis + (1+visit|subj_id), trainData, REML = F) #new model w/ traindata
+    train_error[n] = modelr::rmse(model1, trainData) #making an error variable which contains the model
+    testData$prediction <- predict(model1, testData, allow.new.levels = TRUE) #predict it for the test data
+    test_error[n] = ModelMetrics::rmse(testData$CHI_MLU, testData$prediction)
+    n = n+1
+    }
+
+print(test_error)
+print(train_error)
+
+
+
+
+[HERE GOES YOUR ANSWER]
+```` 
+
+
+### Exercise 3) Assessing the single child
+
+Let's get to business. This new kiddo - Bernie - has entered your clinic. This child has to be assessed according to his group's average and his expected development.
+
+Bernie is one of the six kids in the test dataset, so make sure to extract that child alone for the following analysis.
+
+You want to evaluate:
+
+- how does the child fare in ChildMLU compared to the average TD child at each visit? Define the distance in terms of absolute difference between this Child and the average TD.
+(Tip: recreate the equation of the model: Y=Intercept+BetaX1+BetaX2, etc; input the average of the TD group  for each parameter in the model as X1, X2, etc.).
+
+- how does the child fare compared to the model predictions at Visit 6? Is the child below or above expectations? (tip: use the predict() function on Bernie's data only and compare the prediction with the actual performance of the child)
+
+```{r}
+
+
+# ----- Exercize 3
+
+#subset af visit x subset af TD for hver visit, og så tager man bernies mlu gennemsnit i det givne visit og minuser visit x mlu gennemsnit 
+
+bernie = subset(test_data, subj_id == 2)
+b_mean = mean(bernie$CHI_MLU, na.rm = TRUE)
+b_mean
+
+TDchild = subset(test_data, Diagnosis == "TD")
+TD_mean = mean(TDchild$CHI_MLU, na.rm = TRUE)
+TD_mean
+
+
+v1 = subset(test_data, visit == 1)
+v1_sub = subset(v1, Diagnosis == 'TD')
+v1_mean = mean(v1_sub$CHI_MLU)
+bernie$CHI_MLU[1] - v1_mean
+#0.655714
+
+v2 = subset(test_data, visit == 2)
+v2_sub = subset(v2, Diagnosis == 'TD')
+v2_mean = mean(v2_sub$CHI_MLU)
+bernie$CHI_MLU[2] - v2_mean
+#0.791981
+
+v3 = subset(test_data, visit == 3)
+v3_sub = subset(v3, Diagnosis == 'TD')
+v3_mean = mean(v3_sub$CHI_MLU)
+bernie$CHI_MLU[3] - v3_mean
+#1.151733
+
+v3 = subset(test_data, visit == 3)
+v3_sub = subset(v3, Diagnosis == 'TD')
+v3_mean = mean(v3_sub$CHI_MLU)
+bernie$CHI_MLU[3] - v3_mean
+# 1.151733
+
+v4 = subset(test_data, visit == 4)
+v4_sub = subset(v4, Diagnosis == 'TD')
+v4_mean = mean(v4_sub$CHI_MLU)
+bernie$CHI_MLU[4] - v4_mean
+# 0.4877782
+
+v5 = subset(test_data, visit == 5)
+v5_sub = subset(v5, Diagnosis == 'TD')
+v5_mean = mean(v5_sub$CHI_MLU)
+bernie$CHI_MLU[5] - v5_mean
+# -0.05315775
+
+v6 = subset(test_data, visit == 6)
+v6_sub = subset(v6, Diagnosis == 'TD')
+v6_mean = mean(v6_sub$CHI_MLU)
+bernie$CHI_MLU[6] - v6_mean
+# 0.6950429
+
+#Bernie fared well above what was estimated
+
+
+b_p = predict(model1, bernie, interval = "prediction")
+summary(b_p)
+
+[HERE GOES YOUR ANSWER]
+```` 
+
+### OPTIONAL: Exercise 4) Model Selection via Information Criteria
+Another way to reduce the bad surprises when testing a model on new data is to pay close attention to the relative information criteria between the models you are comparing. Let's learn how to do that!
+
+Re-create a selection of possible models explaining ChildMLU (the ones you tested for exercise 2, but now trained on the full dataset and not cross-validated).
+
+Then try to find the best possible predictive model of ChildMLU, that is, the one that produces the lowest information criterion.
+
+- Bonus question for the optional exercise: are information criteria correlated with cross-validated RMSE? That is, if you take AIC for Model 1, Model 2 and Model 3, do they co-vary with their cross-validated RMSE?
+
+```{r}
+
+
+bm_01 = lmerTest::lmer(CHI_MLU ~ Diagnosis + (1|ExpressiveLangRaw) + (1|MOT_MLU), train_data)
+summary(bm_01)
+
+bm_02 = lmer(CHI_MLU ~ ADOS + ExpressiveLangRaw + (1+ visit|subj_id), train_data)
+summary(bm_02)
+
+bm_03 = lmerTest::lmer(CHI_MLU ~ ADOS + (1|Diagnosis) + (1|Ethnicity) + (1|ExpressiveLangRaw), train_data)
+summary(bm_03)
+
+
+
+Metrics::rmse(test_data$CHI_MLU,predict(bm_01, test_data, allow.new.levels = TRUE))
+
+
+[HERE GOES YOUR ANSWER]
+```` 
+
+### OPTIONAL: Exercise 5): Using Lasso for model selection
+Welcome to the last secret exercise. If you have already solved the previous exercises, and still there's not enough for you, you can expand your expertise by learning about penalizations. Check out this tutorial: http://machinelearningmastery.com/penalized-regression-in-r/ and make sure to google what penalization is, with a focus on L1 and L2-norms. Then try them on your data!
+
+```{r}
+[HERE GOES YOUR ANSWER]
+```` 
