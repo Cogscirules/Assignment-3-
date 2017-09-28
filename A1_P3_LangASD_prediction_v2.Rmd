@@ -325,18 +325,32 @@ Then try to find the best possible predictive model of ChildMLU, that is, the on
 ```{r}
 
 
-bm_01 = lmerTest::lmer(CHI_MLU ~ Diagnosis + (1|ExpressiveLangRaw) + (1|MOT_MLU), train_data)
+bm_01 = lmer(CHI_MLU ~ Diagnosis + (1|ExpressiveLangRaw) + (1|MOT_MLU), train_data, REML = FALSE)
 summary(bm_01)
+#AIC = 806.6, BIC = 825.9
 
-bm_02 = lmer(CHI_MLU ~ ADOS + ExpressiveLangRaw + (1+ visit|subj_id), train_data)
+
+bm_02 = lmer(CHI_MLU ~ ADOS + ExpressiveLangRaw + (1+ visit|subj_id), train_data, REML = FALSE)
 summary(bm_02)
+#AIC = 601.0, BIC = 628.0 --> the lowest Information Criterion
 
-bm_03 = lmerTest::lmer(CHI_MLU ~ ADOS + (1|Diagnosis) + (1|Ethnicity) + (1|ExpressiveLangRaw), train_data)
+bm_03 = lmerTest::lmer(CHI_MLU ~ ADOS + (1|Diagnosis) + (1|Ethnicity) + (1|ExpressiveLangRaw), train_data, REML = FALSE)
 summary(bm_03)
+#AIC = 798.2, BIC = 821.4
+
 
 
 
 Metrics::rmse(test_data$CHI_MLU,predict(bm_01, test_data, allow.new.levels = TRUE))
+
+Metrics::rmse(test_data$CHI_MLU,predict(bm_02, test_data, allow.new.levels = TRUE))
+
+Metrics::rmse(test_data$CHI_MLU,predict(bm_03, test_data, allow.new.levels = TRUE))
+
+
+model_anova = anova(bm_01, bm_02, bm_03)
+summary(model_anova)
+
 
 
 [HERE GOES YOUR ANSWER]
