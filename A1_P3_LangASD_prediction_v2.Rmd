@@ -59,7 +59,7 @@ bm_001 = lmer(CHI_MLU ~ ADOS + ExpressiveLangRaw + (1+ visit|subj_id), train_dat
 summary(bm_001)
 
 rmse_train = modelr::rmse(bm_001, train_data)
-rmse_train
+summary(rmse_train)
 
 #Doesn't work: rmse "Error: unexpected ',' in..."
 
@@ -160,11 +160,7 @@ test_data = read.csv("test_data.csv")
 #----- Testing the model on the test data
 
 
-bm_test_data = lmer(CHI_MLU ~ ADOS + ExpressiveLangRaw + (1+ visit|subj_id), test_data)
-summary(bm_test_data)
-
-
-rmse_model_test = modelr::rmse(bm_test_data, test_data)
+rmse_model_test = modelr::rmse(bm_001, test_data)
 summary(rmse_model_test)
 
 xyp = predict(bm_test_data, test_data, interval = "prediction")
@@ -224,9 +220,12 @@ for (i in folds){
     }
 
 print(test_error)
+av_te = mean(test_error)
+av_te
+
 print(train_error)
-
-
+av_tre = mean(train_error)
+av_tre
 
 
 [HERE GOES YOUR ANSWER]
@@ -304,11 +303,35 @@ v6_mean = mean(v6_sub$CHI_MLU)
 bernie$CHI_MLU[6] - v6_mean
 # 0.6950429
 
+
 #Bernie fared well above what was estimated
 
 
+td_group = test_data[test_data$Diagnosis == "TD",]
+
+mlu = c(
+mean(td_group$CHI_MLU[td_group$visit=="1"]),
+mean(td_group$CHI_MLU[td_group$visit=="2"]),
+mean(td_group$CHI_MLU[td_group$visit=="3"]),
+mean(td_group$CHI_MLU[td_group$visit=="4"]),
+mean(td_group$CHI_MLU[td_group$visit=="5"]),
+mean(td_group$CHI_MLU[td_group$visit=="6"])
+)
+visit = (seq(1:6))
+temp = data.frame(subj_id="TD",visit = visit, avg_mlu = mlu)
+
+temp$avg_mlu
+
+#bernie, actual avergae td, predicted child mlu
+
 b_p = predict(model1, bernie, interval = "prediction")
 summary(b_p)
+
+nd_pred_bernie = data.frame(bernie, mlu, b_p)
+
+ggplot(nd_pred_bernie, aes(visit, temp$avg_mlu, fill = subj_id))+geom_bar(stat="identity", position = "dodge")
+
+
 
 [HERE GOES YOUR ANSWER]
 ```` 
@@ -346,6 +369,8 @@ Metrics::rmse(test_data$CHI_MLU,predict(bm_01, test_data, allow.new.levels = TRU
 Metrics::rmse(test_data$CHI_MLU,predict(bm_02, test_data, allow.new.levels = TRUE))
 
 Metrics::rmse(test_data$CHI_MLU,predict(bm_03, test_data, allow.new.levels = TRUE))
+
+
 
 
 model_anova = anova(bm_01, bm_02, bm_03)
