@@ -25,6 +25,7 @@ library(caret)
 library(modelr)
 library(ModelMetrics)
 library(Metrics)
+library(tidyverse)
 
 train_data = subset(csvasm, select = c(subj_id, Diagnosis, Age, Gender, Ethnicity, visit, ADOS, MullenRaw, ExpressiveLangRaw, MOT_MLU, CHI_MLU, types_MOT, types_CHI, tokens_MOT, tokens_CHI))
 
@@ -167,9 +168,6 @@ xyp = predict(bm_test_data, test_data, interval = "prediction")
 summary(xyp)
 
 
-
-
-[HERE GOES YOUR ANSWER]
 ```` 
 
 ### Exercise 2) Model Selection via Cross-validation (N.B: ChildMLU!)
@@ -227,8 +225,6 @@ print(train_error)
 av_tre = mean(train_error)
 av_tre
 
-
-[HERE GOES YOUR ANSWER]
 ```` 
 
 
@@ -279,11 +275,6 @@ v3_mean = mean(v3_sub$CHI_MLU)
 bernie$CHI_MLU[3] - v3_mean
 #1.151733
 
-v3 = subset(test_data, visit == 3)
-v3_sub = subset(v3, Diagnosis == 'TD')
-v3_mean = mean(v3_sub$CHI_MLU)
-bernie$CHI_MLU[3] - v3_mean
-# 1.151733
 
 v4 = subset(test_data, visit == 4)
 v4_sub = subset(v4, Diagnosis == 'TD')
@@ -322,18 +313,32 @@ temp = data.frame(subj_id="TD",visit = visit, avg_mlu = mlu)
 
 temp$avg_mlu
 
-#bernie, actual avergae td, predicted child mlu
+#bernie, actual average td, predicted child mlu
 
 b_p = predict(model1, bernie, interval = "prediction")
 summary(b_p)
 
-nd_pred_bernie = data.frame(bernie, mlu, b_p)
 
-ggplot(nd_pred_bernie, aes(visit, temp$avg_mlu, fill = subj_id))+geom_bar(stat="identity", position = "dodge")
+#------- I've tried different codes/ways of making a plot which shows Bernies development compared to the average TD (...)
+#------- child, and the predicted development of Bernie. However, it was not successful. 
+#------- I will commit a new version if I find a solution before Thursday.
+
+nd_pred_bernie = data.frame(bernie, temp$mlu, b_p)
+
+ggplot(nd_pred_bernie, aes(visit, avg_mlu, fill = subj_id))+geom_bar(stat="identity", position = "dodge")
 
 
 
-[HERE GOES YOUR ANSWER]
+#You need a data frame in long format for this. First create your dataframe like this, where you also have visit included:
+nr_pred_bernie = data.frame(bernie = bernie, mlu = temp$avg_mlu, b_p = b_p, visit = visit)
+temp$mlu
+
+#then you need to convert the df into long-format using "gather" from tidyverse package:
+long_df = gather(nr_pred_bernie$bernie.visit, visit, bernie, temp$mlu, b_p)
+
+#Lastly you can plot like this: 
+ggplot(long_df, aes(visit, value, color = key))+ geom_point() + geom_line()
+
 ```` 
 
 ### OPTIONAL: Exercise 4) Model Selection via Information Criteria
@@ -376,9 +381,6 @@ Metrics::rmse(test_data$CHI_MLU,predict(bm_03, test_data, allow.new.levels = TRU
 model_anova = anova(bm_01, bm_02, bm_03)
 summary(model_anova)
 
-
-
-[HERE GOES YOUR ANSWER]
 ```` 
 
 ### OPTIONAL: Exercise 5): Using Lasso for model selection
